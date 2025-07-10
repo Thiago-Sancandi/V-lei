@@ -2,136 +2,153 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Jogo de Vôlei 2x2</title>
+  <title>Vôlei 2D - Power Smash</title>
   <style>
-    body { background: #222; margin: 0; overflow: hidden; }
-    canvas { display: block; margin: 0 auto; background: #87CEEB; image-rendering: pixelated; }
+    body { margin: 0; background: #1a1a1a; overflow: hidden; font-family: sans-serif; }
+    canvas { display: block; margin: 0 auto; background: linear-gradient(#4db8ff, #ffffff); image-rendering: pixelated; }
   </style>
 </head>
 <body>
 <canvas id="gameCanvas" width="800" height="480"></canvas>
 <script>
-  const canvas = document.getElementById("gameCanvas");
-  const ctx = canvas.getContext("2d");
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-  // Configurações iniciais
-  const court = { w: 800, h: 480, netHeight: 100 };
-  const gravity = 0.4;
+// Configurações
+const GRAVITY = 0.5;
+const NET_HEIGHT = 120;
+let score = [0, 0];
 
-  function createPlayer(x, y, color) {
-    return {
-      x, y, vx: 0, vy: 0, w: 20, h: 40,
-      color,
-      grounded: false
-    };
+function createPlayer(x, y, color) {
+  return { x, y, vx: 0, vy: 0, w: 24, h: 44, color, grounded: false };
+}
+
+const players = [
+  createPlayer(150, 400, '#ff5555'),
+  createPlayer(250, 400, '#ffaa00'),
+  createPlayer(550, 400, '#55aaff'),
+  createPlayer(650, 400, '#00ffff')
+];
+
+const ball = {
+  x: 400,
+  y: 200,
+  vx: 5,
+  vy: -4,
+  r: 10,
+  lastHit: null
+};
+
+const keys = {};
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
+
+function updatePlayer(p, left, right, jump) {
+  p.vx = (keys[left] ? -4 : 0) + (keys[right] ? 4 : 0);
+  if (keys[jump] && p.grounded) {
+    p.vy = -11;
+    p.grounded = false;
+  }
+  p.vy += GRAVITY;
+  p.x += p.vx;
+  p.y += p.vy;
+
+  if (p.y + p.h > canvas.height - 20) {
+    p.y = canvas.height - 20 - p.h;
+    p.vy = 0;
+    p.grounded = true;
   }
 
-  const players = [
-    createPlayer(150, 400, "red"),
-    createPlayer(250, 400, "orange"),
-    createPlayer(550, 400, "blue"),
-    createPlayer(650, 400, "cyan")
-  ];
+  // Limites laterais
+  p.x = Math.max(0, Math.min(canvas.width - p.w, p.x));
+}
 
-  const ball = {
-    x: court.w / 2, y: 200, r: 10,
-    vx: 4, vy: -4
-  };
+function updateBall() {
+  ball.vy += GRAVITY;
+  ball.x += ball.vx;
+  ball.y += ball.vy;
 
-  const keys = {};
-  document.addEventListener("keydown", e => keys[e.key] = true);
-  document.addEventListener("keyup", e => keys[e.key] = false);
+  if (ball.y + ball.r > canvas.height - 20) {
+    scorePoint(ball.lastHit === 0 ? 1 : 0);
+    resetBall();
+  }
 
-  function updatePlayer(p, left, right, jump) {
-    // Movimento horizontal
-    if (keys[left]) p.vx = -4;
-    else if (keys[right]) p.vx = 4;
-    else p.vx = 0;
+  if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) ball.vx *= -1;
 
-    // Pulo
-    if (keys[jump] && p.grounded) {
-      p.vy = -10;
-      p.grounded = false;
+  // Colisão com a rede
+  if (
+    ball.x > canvas.width / 2 - 5 &&
+    ball.x < canvas.width / 2 + 5 &&
+    ball.y + ball.r > canvas.height - NET_HEIGHT
+  ) ball.vx *= -1;
+
+  // Colisão com jogadores
+  players.forEach((p, index) => {
+    const dx = ball.x - (p.x + p.w / 2);
+    const dy = ball.y - (p.y + p.h / 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < ball.r + 24) {
+      ball.vx = dx * 0.25;
+      ball.vy = dy * 0.25;
+      ball.lastHit = index < 2 ? 0 : 1;
     }
+  });
+}
 
-    p.vy += gravity;
-    p.x += p.vx;
-    p.y += p.vy;
+function resetBall() {
+  ball.x = 400;
+  ball.y = 200;
+  ball.vx = (Math.random() > 0.5 ? 1 : -1) * 4;
+  ball.vy = -5;
+}
 
-    // Colisão com o chão
-    if (p.y + p.h > court.h) {
-      p.y = court.h - p.h;
-      p.vy = 0;
-      p.grounded = true;
-    }
-  }
+function scorePoint(team) {
+  score[team]++;
+}
 
-  function updateBall() {
-    ball.vy += gravity;
-    ball.x += ball.vx;
-    ball.y += ball.vy;
+function drawCourt() {
+  ctx.fillStyle = '#ffe4b5';
+  ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
 
-    // Chão
-    if (ball.y + ball.r > court.h) {
-      ball.y = court.h - ball.r;
-      ball.vy *= -0.6;
-    }
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(canvas.width / 2 - 5, canvas.height - NET_HEIGHT, 10, NET_HEIGHT);
 
-    // Paredes
-    if (ball.x - ball.r < 0 || ball.x + ball.r > court.w) {
-      ball.vx *= -1;
-    }
+  ctx.font = '20px monospace';
+  ctx.fillStyle = 'black';
+  ctx.fillText(`Team A: ${score[0]}`, 50, 30);
+  ctx.fillText(`Team B: ${score[1]}`, 600, 30);
+}
 
-    // Colisão com jogadores
-    for (let p of players) {
-      const dx = ball.x - (p.x + p.w / 2);
-      const dy = ball.y - (p.y + p.h / 2);
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < ball.r + Math.max(p.w, p.h) / 2) {
-        ball.vx = dx * 0.2;
-        ball.vy = dy * 0.2;
-      }
-    }
-  }
+function drawPlayer(p) {
+  ctx.fillStyle = p.color;
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+}
 
-  function drawCourt() {
-    ctx.fillStyle = "#F4A460";
-    ctx.fillRect(0, court.h - 20, court.w, 20); // areia
+function drawBall() {
+  ctx.fillStyle = 'white';
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fill();
+}
 
-    ctx.fillStyle = "white";
-    ctx.fillRect(court.w / 2 - 5, court.h - court.netHeight, 10, court.netHeight); // rede
-  }
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  function drawPlayer(p) {
-    ctx.fillStyle = p.color;
-    ctx.fillRect(p.x, p.y, p.w, p.h);
-  }
+  updatePlayer(players[0], 'a', 'd', 'w');
+  updatePlayer(players[1], 'j', 'l', 'i');
+  updatePlayer(players[2], 'ArrowLeft', 'ArrowRight', 'ArrowUp');
+  updatePlayer(players[3], ',', '.', '/');
 
-  function drawBall() {
-    ctx.fillStyle = "white";
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  updateBall();
+  drawCourt();
+  players.forEach(drawPlayer);
+  drawBall();
 
-  function loop() {
-    ctx.clearRect(0, 0, court.w, court.h);
+  requestAnimationFrame(loop);
+}
 
-    // Atualiza jogadores
-    updatePlayer(players[0], "a", "d", "w");
-    updatePlayer(players[1], "j", "l", "i");
-    updatePlayer(players[2], "ArrowLeft", "ArrowRight", "ArrowUp");
-    updatePlayer(players[3], ",", ".", "/");
-
-    updateBall();
-    drawCourt();
-    players.forEach(drawPlayer);
-    drawBall();
-
-    requestAnimationFrame(loop);
-  }
-
-  loop();
+resetBall();
+loop();
 </script>
 </body>
 </html>
